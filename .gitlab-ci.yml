@@ -1,12 +1,62 @@
-# You can override the included template(s) by including variable overrides
-# SAST customization: https://docs.gitlab.com/ee/user/application_security/sast/#customizing-the-sast-settings
-# Secret Detection customization: https://docs.gitlab.com/ee/user/application_security/secret_detection/#customizing-settings
-# Dependency Scanning customization: https://docs.gitlab.com/ee/user/application_security/dependency_scanning/#customizing-the-dependency-scanning-settings
-# Note that environment variables can be set in several places
-# See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
-stages:
-- test
-sast:
-  stage: test
-include:
-- template: Security/SAST.gitlab-ci.yml
+variables:
+  GIT_STRATEGY: fetch
+  DEPLOY_IMAGE_TAG: $CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
+  CI_REGISTRY_IMAGE_COMMIT: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
+  CI_REGISTRY_IMAGE_BRANCH: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  CI_REGISTRY_IMAGE_LATEST: $CI_REGISTRY_IMAGE:latest
+
+
+image:
+  name: gcr.io/kaniko-project/executor:debug
+  entrypoint: [""]
+
+
+docker build app:
+  stage: build
+  only:
+    refs:
+      - main
+  except:
+    refs:
+      - tags
+    variables:
+      - $CI_COMMIT_MESSAGE =~ /skip.build/i
+  script:
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $CI_REGISTRY_IMAGE:$DEPLOY_IMAGE_TAG
+
+
+
+deploy test:
+  stage: deploy
+  only:
+    refs:
+      - main
+  except:
+    refs:
+      - tags
+    variables:
+      - $CI_COMMIT_MESSAGE =~ /skip.deploy/i
+  image: dtzar/helm-kubectl:3.3.4
+  before_script:
+    - kubectl config set-cluster k8s --server=$KUBE_URL --insecure-skip-tls-verify=true
+    - kubectl config set-credentials $KUBE_SERVICE_ACCOUNT --token=$KUBE_TOKEN
+    - kubectl config set-context default --cluster=k8s --user=$KUBE_SERVICE_ACCOUNT --namespace=$KUBE_NAMESPACE
+    - kubectl config use-context default
+    - kubectl delete secret $CI_PROJECT_NAME-registry --ignore-not-found
+    - kubectl create secret docker-registry $CI_PROJECT_NAME-registry
+      --docker-username=$CI_DEPLOY_USER
+      --docker-password=$CI_DEPLOY_PASSWORD
+      --docker-server=registry.gitlab.com -o yaml --dry-run=client | kubectl apply -f -
+    - kubectl create configmap env --from-env-file=$ENV_TEST --output yaml --dry-run > env.yaml
+    - export INGRESS_HOST=$(echo $CI_ENVIRONMENT_URL |  sed 's;https://;;g')
+  script:
+    - helm upgrade --install
+      --set image.tag=$DEPLOY_IMAGE_TAG
+      --set ingress.host=$INGRESS_HOST
+      --set-file envmap=env.yaml
+      --cleanup-on-fail
+      --namespace=$KUBE_NAMESPACE
+      $CI_PROJECT_NAME-$CI_ENVIRONMENT_NAME deploy/
+  environment:
+    name: prod
