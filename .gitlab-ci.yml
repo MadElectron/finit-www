@@ -37,12 +37,12 @@ deploy test:
       - tags
     variables:
       - $CI_COMMIT_MESSAGE =~ /skip.deploy/i
-  image: dtzar/helm-kubectl:3.3.4
+  image: dtzar/helm-kubectl:3
   before_script:
-    - kubectl config set-cluster k8s --server=$KUBE_URL --insecure-skip-tls-verify=true
-    - kubectl config set-credentials $KUBE_SERVICE_ACCOUNT --token=$KUBE_TOKEN
-    - kubectl config set-context default --cluster=k8s --user=$KUBE_SERVICE_ACCOUNT --namespace=$KUBE_NAMESPACE
-    - kubectl config use-context default
+    - kubectl config get-contexts
+    - kubectl config use-context $KUBE_CONTEXT
+    - kubectl create namespace $KUBE_NAMESPACE -o yaml --dry-run=client | kubectl apply -f -
+    - kubectl config set-context --current --namespace=$KUBE_NAMESPACE
     - kubectl delete secret $CI_PROJECT_NAME-registry --ignore-not-found
     - kubectl create secret docker-registry $CI_PROJECT_NAME-registry
       --docker-username=$CI_DEPLOY_USER
@@ -60,3 +60,4 @@ deploy test:
       $CI_PROJECT_NAME-$CI_ENVIRONMENT_NAME deploy/
   environment:
     name: prod
+
