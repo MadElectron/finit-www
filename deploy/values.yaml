@@ -1,8 +1,0 @@
-replicas: 1
-image:
-  repository: registry.gitlab.com/fin-it/www
-  tag: latest
-service:
-  internalPort: 80
-issuer:
-  enabled: false  # set to `true` if deploy in a namespace without an issuer
