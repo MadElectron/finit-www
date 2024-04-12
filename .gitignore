@@ -1,0 +1,4 @@
+# This .gitignore file is specified ONLY for 'develop' branch
+.gitlab-ci.yml
+Dockerfile
+deploy
