@@ -3291,4 +3291,29 @@ section.about, section.pricing  {margin-top: 20px}
 .about .second-block {border-left: 2px solid #353b43;}
 }
 
+/*=================================================================
+	Documents section (Added manually)
+==================================================================*/
+
+.documents .btn-main {
+  margin: 0;
+  padding: 10px 0;
+  background: none;
+}
+
+.documents .btn-main:hover {
+  color:#71c7ff
+}
+
+.documents i.fa {
+  font-size: 20px;
+  color: #71c7ff;
+}
+
+.documents ul li {
+  display: flex;
+  align-items: center;
+}
+
 /*# sourceMappingURL=maps/style.css.map */
+
